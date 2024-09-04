@@ -1,0 +1,86 @@
+﻿@page "/users"
+@using System.ComponentModel.DataAnnotations
+@rendermode InteractiveServer
+@inject NavigationManager navigationManager
+
+<PageTitle>Users</PageTitle>
+
+<h3>User Administration</h3>
+
+<div class="users-content">
+
+    @if (users != null)
+    {
+        @foreach (var u in users)
+        {
+            <div class="users-grp">
+                <div>@u.FirstName</div>
+                <div>@u.LastName</div>
+                <div>@u.Email</div>
+                <div class="btn-grp">
+                    <button type="button" @onclick="(() => ViewUser(u.Id))">View</button>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <p>Loading...</p>
+    }
+
+</div>
+
+@code {
+    private UserModel[]? users;
+    private readonly HttpClient client = new HttpClient();
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsersAsync();
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        try
+        {
+            // Assuming the API returns a JSON array of UserModel objects
+            users = await client.GetFromJsonAsync<UserModel[]>("http://localhost:7104/api/users");
+        }
+        catch (Exception ex)
+        {
+            // Handle any exceptions or errors
+            Console.WriteLine($"Error loading users: {ex.Message}");
+            users = Array.Empty<UserModel>(); // Default to empty array if there's an issue
+        }
+    }
+
+    private void ViewUser(string userId)
+    {
+        // Redirect to /user/{id} to view/edit the user
+        navigationManager.NavigateTo($"/user/{userId}");
+    }
+
+    private sealed class InputModel
+    {
+        [Display(Name = "First Name")]
+        public string? FirstName { get; set; }
+        [Display(Name = "Last Name")]
+        public string? LastName { get; set; }
+        [Display(Name = "Email")]
+        public string? Email { get; set; }
+    }
+
+    public class UserModel
+    {
+        public string Id { get; set; } = string.Empty;
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+    }
+}

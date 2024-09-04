@@ -1,0 +1,245 @@
+﻿@inject HttpClient Http
+@inject NavigationManager navigationManager
+@rendermode InteractiveServer
+
+@page "/course/{courseId}"
+
+@using System.Text.Json
+@using Newtonsoft.Json
+
+<PageTitle>Edit Course</PageTitle>
+
+<h3>Course Details</h3>
+
+@if (course == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="content-box">
+        <EditForm Model="Input" FormName="course" OnValidSubmit="OnValidSubmitAsync" method="post">
+            <div class="input-grp">
+                <div><b>Image URL:  </b> @course.Image</div>
+                <div><InputText @bind-Value="Input.Image" placeholder="Please enter the image url." /></div>
+                <ValidationMessage For="() => Input.Image" class="text-danger" />
+            </div>
+            <div class="input-grp">
+                <div><b>Title:  </b> @course.Title</div>
+                <div><InputText @bind-Value="Input.Title" placeholder="Please enter course title." /></div>
+                <ValidationMessage For="() => Input.Title" class="text-danger" />
+            </div>
+            <div class="input-grp">
+                <div><b>Author name</b> @course.Authors[0].Name</div>
+                <div>
+                    <InputText @bind-Value="Input.AuthorName" placeholder="Please enter author name." />
+                    <ValidationMessage For="() => Input.AuthorName" class="text-danger" />
+                </div>
+            </div>
+            <div class="input-grp">
+                <div><b>Price:  </b> @course.Prices.Price</div>
+                <div>
+                    <InputText @bind-Value="Input.Price" placeholder="Please enter course price." />
+                    <ValidationMessage For="() => Input.Price" class="text-danger" />
+                </div>
+            </div>
+            <div class="input-grp">
+                <div><b>Discounted price:  </b> @course.Prices.Discount</div>
+                <div>
+                    <InputText @bind-Value="Input.Discount" placeholder="Please enter course discount price." />
+                    <ValidationMessage For="() => Input.Discount" class="text-danger" />
+                </div>
+            </div>
+            <div class="input-grp">
+                <div><b>Hours:  </b> @course.Hours</div>
+                <div>
+                    <InputText @bind-Value="Input.Hours" placeholder="Please enter estimated course length in hours." />
+                    <ValidationMessage For="() => Input.Hours" class="text-danger" />
+                </div>
+            </div>
+            <div class="input-grp">
+                <div><b>Likes:  </b> @course.Likes</div>
+                <div>
+                    <InputText @bind-Value="Input.Likes" placeholder="Please enter number of likes." />
+                    <ValidationMessage For="() => Input.Likes" class="text-danger" />
+                </div>
+            </div>
+            <div class="input-grp">
+                <div><b>Likes in Percent:  </b> @course.LikesPercent</div>
+                <div>
+                    <InputText @bind-Value="Input.LikesPercent" placeholder="Please enter likes in percent." />
+                    <ValidationMessage For="() => Input.LikesPercent" class="text-danger" />
+                </div>
+            </div>
+            <div class="isBestseller">
+                <b>@course.IsBestseller</b>
+                <InputCheckbox @bind-Value="Input.IsBestseller"></InputCheckbox>
+            </div>
+
+            <div class="btn-grp">
+                <button type="submit">Save Changes</button>
+            </div>
+        </EditForm>
+        <div class="btn-grp">
+            <button type="button" class="btn btn-danger" @onclick="OnDeleteSubmitAsync">Delete User</button>
+        </div>
+    </div>
+}
+
+@code {
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    [Parameter]
+    public string courseId { get; set; }
+
+    private CourseModel? course;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCourseAsync();
+
+        Input.Id = course.Id;
+        Input.Image = course.Image;
+        Input.Title = course.Title;
+        Input.AuthorName = course.Authors[0].Name;
+        Input.Price = course.Prices.Price;
+        Input.Discount = course.Prices.Discount;
+        Input.Hours = course.Hours;
+        Input.Likes = course.Likes;
+        Input.LikesPercent = course.LikesPercent;
+        Input.IsBestseller = course.IsBestseller;
+    }
+
+    private async Task LoadCourseAsync()
+    {
+        var query = new GraphQLQuery
+            {
+                Query = $"{{getOneCourse(id: \"{courseId}\"){{id image title authors{{name}} prices{{price discount}} hours likes likesPercent isBestseller}}}}"
+            };
+
+        var response = await Http.PostAsJsonAsync("http://localhost:7279/api/graphql", query);
+
+        if (response.IsSuccessStatusCode)
+        {
+            var jsonResponse = await response.Content.ReadFromJsonAsync<JsonElement>();
+            course = JsonConvert.DeserializeObject<CourseModel>(jsonResponse.GetProperty("data").GetProperty("getOneCourse").ToString());
+        }
+
+    }
+
+    private async Task OnValidSubmitAsync()
+    {
+        if (course != null)
+        {
+            course.Image = Input.Image;
+            course.Title = Input.Title;
+            course.Authors[0].Name = Input.AuthorName;
+            course.Prices.Price = Input.Price;
+            course.Prices.Discount = Input.Discount;
+            course.Hours = Input.Hours;
+            course.Likes = Input.Likes;
+            course.LikesPercent = Input.LikesPercent;
+            course.IsBestseller = Input.IsBestseller;
+
+
+            var mutationQuery = new GraphQLQuery
+                {
+                    Query = $@"
+mutation {{
+updateCourse(input: {{
+id: ""{course.Id}"",
+image: ""{course.Image}"",
+title: ""{course.Title}"",
+authors: [{{ name: ""{course.Authors[0].Name}"" }}],
+prices: {{ price: ""{course.Prices.Price}"", discount: ""{course.Prices.Discount}"" }},
+hours: ""{course.Hours}"",
+likes: ""{course.Likes}"",
+likesPercent: ""{course.LikesPercent}"",
+isBestseller: {course.IsBestseller.ToString().ToLower()}
+}})
+{{
+id
+}}
+}}"
+                };
+
+            var response = await Http.PostAsJsonAsync("http://localhost:7279/api/graphql", mutationQuery);
+
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadCourseAsync();
+            }
+
+        }
+    }
+
+    private async Task OnDeleteSubmitAsync()
+    {
+        var test = course.Id;
+        if (course != null)
+        {
+            var mutationQuery = new GraphQLQuery
+                {
+                    Query = $@"
+mutation {{
+deleteCourse(id: ""{course.Id}"")
+}}"
+                };
+
+            var response = await Http.PostAsJsonAsync("http://localhost:7279/api/graphql", mutationQuery);
+
+            if (response.IsSuccessStatusCode)
+            {
+
+                navigationManager.NavigateTo("/courses");
+            }
+        }
+    }
+
+
+
+    public class GraphQLQuery
+    {
+        public string Query { get; set; } = null!;
+    }
+
+    private sealed class InputModel
+    {
+        public string Id { get; set; } = string.Empty;
+        public string? Image { get; set; }
+        public string? Title { get; set; }
+        public string? AuthorName { get; set; }
+        public string? Price { get; set; }
+        public string? Discount { get; set; }
+        public string? Hours { get; set; }
+        public string? Likes { get; set; }
+        public string? LikesPercent { get; set; }
+        public bool IsBestseller { get; set; }
+    }
+
+    public class CourseModel
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Image { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public Author[] Authors { get; set; } = Array.Empty<Author>();
+        public Prices Prices { get; set; } = new();
+        public string Hours { get; set; } = string.Empty;
+        public string Likes { get; set; } = string.Empty;
+        public string LikesPercent { get; set; } = string.Empty;
+        public bool IsBestseller { get; set; }
+    }
+
+    public class Prices
+    {
+        public string Price { get; set; } = string.Empty;
+        public string Discount { get; set; } = string.Empty;
+    }
+
+    public class Author
+    {
+        public string Name { get; set; } = string.Empty;
+    }
+}

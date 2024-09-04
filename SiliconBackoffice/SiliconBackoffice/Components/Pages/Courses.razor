@@ -1,0 +1,94 @@
+﻿@using Microsoft.AspNetCore.Identity
+@using System.Text.Json
+@using Newtonsoft.Json
+@rendermode InteractiveServer
+@inject NavigationManager navigationManager
+
+@page "/courses"
+
+<PageTitle>Courses</PageTitle>
+
+<h3>Courses Administration</h3>
+
+<div class="courses-content">
+
+
+    @if (courses != null)
+    {
+        @foreach (var c in courses)
+        {
+            <div class="courses-grp">
+                <div><img src="@c.Image" /></div>
+                <div>@c.Title</div>
+                <div class="btn-grp">
+                    <button type="button" @onclick="(() => ViewCourse(c.Id))">View</button>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <p>Loading...</p>
+    }
+
+</div>
+
+@code {
+    public CourseModel[]? courses;
+    private HttpClient client = new HttpClient();
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCoursesAsync();
+    }
+
+    private async Task LoadCoursesAsync()
+    {
+        var query = new GraphQLQuery
+            {
+                Query = "{getAllCourses{id image title}}"
+            };
+
+        var response = await client.PostAsJsonAsync("http://localhost:7279/api/graphql", query);
+
+        if (response.IsSuccessStatusCode)
+        {
+            var jsonResponse = await response.Content.ReadFromJsonAsync<JsonElement>();
+            var courseData = JsonConvert.DeserializeObject<List<CourseModel>>(jsonResponse.GetProperty("data").GetProperty("getAllCourses").ToString());
+
+            courses = courseData.ToArray();
+        }
+    }
+
+
+    private void ViewCourse(string courseId)
+    {
+        navigationManager.NavigateTo($"/course/{courseId}");
+    }
+
+
+    private sealed class InputModel
+    {
+        public string? Id { get; set; }
+        public string? Image { get; set; }
+        public string? Title { get; set; }
+    }
+
+    public class GraphQLQuery
+    {
+        public string Query { get; set; } = null!;
+    }
+
+    public class CourseModel
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Image { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+    }
+}
